@@ -4,8 +4,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 import argparse
 from pathlib import Path
 from typing import Optional
+import scanpy as sc
 from gene_embeddings.geneformer import TranscriptomeTokenizer, EmbExtractor
-
 from utils import update_configs_with_args
 from configs import GeneformerConfigs
 
@@ -61,7 +61,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--data_directory', type=Path, default='../data/',
                         help='Path to directory containing loom files or anndata files.')
-    parser.add_argument('--output_directory', type=Path, default='../data/',
+    parser.add_argument('--output_directory', type=Path, default='../data/embeddings',
                         help='Path to directory where tokenized data and gene vocabulary will be saved.')
     parser.add_argument('--file_format', type=str, choices=['loom', 'h5ad'], default='h5ad',
                         help='Format of input files. Can be "loom" or "h5ad".')
@@ -89,10 +89,15 @@ if __name__ == '__main__':
     args_dict = vars(args)
     update_configs_with_args(configs, args_dict, None)
 
+
+
     model = GeneProcessor(**configs.__dict__)
     embds = model.vocabularize(
-        args.data_directory,
-        args.output_directory,
-        args.file_format,
-        args.model_directory
-    )
+                args.data_directory,
+                args.output_directory,
+                args.file_format,
+                args.model_directory
+            )
+
+
+        

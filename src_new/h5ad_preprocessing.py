@@ -1,85 +1,90 @@
 import scanpy as sc
-import scipy.sparse as sp  
+import scipy.sparse as sp
 import argparse
+import pandas as pd
+import re
 
-def h5ad_preprocessing(file_input_path,
-                       cell_ge_expr_threshold=1000,
-                       gene_num_threshold=60,
-                       normalization=True,
-                       log1p=False):
+def check_if_all_strings(column):
+    """
+    Check if all elements in the given column are strings.
+    """
+    if isinstance(column.dtype, pd.CategoricalDtype):
+        column = column.astype(str)
+    return column.head(10).apply(lambda x: isinstance(x, str)).all()
 
+def remove_version_number(ensemble_id):
     """
-    Raw data preprocessing.
-    
-    Args:
-        file_input_path (str): Path to the input .h5ad file.
-        cell_ge_expr_threshold (int): Minimum total gene expression count for a cell.
-        gene_num_threshold (int): Minimum number of genes detected in a cell.
-        normalization (bool): Whether to perform total-count normalization.
-        log1p (bool): Whether to perform log1p transformation.
+    Remove the version number from the ensemble ID.
     """
+    return re.sub(r'\.\d+$', '', ensemble_id)
+
+def H5adPreprocessing(file_input_path,
+                      cell_ge_expr_threshold=1000,
+                      gene_num_threshold=60,
+                      normalization=True,
+                      log1p=False):
+    """
+    Preprocess the AnnData object from an h5ad file.
+
+    Parameters:
+    - file_input_path: Path to the input h5ad file.
+    - cell_ge_expr_threshold: Threshold for cell gene expression.
+    - gene_num_threshold: Minimum number of genes per cell.
+    - normalization: Whether to perform normalization.
+    - log1p: Whether to apply log1p transformation.
+
+    Returns:
+    - Preprocessed AnnData object.
+    """
+    adata = sc.read_h5ad(file_input_path)
+
+    # Filter the cells based on gene count threshold
+    sc.pp.filter_cells(adata, min_genes=gene_num_threshold)
     
-    if file_input_path.endswith('.h5ad'):
-        adata = sc.read_h5ad(file_input_path)
-        
-        # Get the raw data
-        if 'raw_counts' in adata.layers:
-            adata.X = adata.layers['raw_counts']
-        else:
-            raise ValueError("Layer 'raw_counts' not found in adata.layers.")
-        
-        # Filter the cells
-        # Knock out cells with a low number of genes
-        sc.pp.filter_cells(adata, min_genes=gene_num_threshold)
-        
-        # Remove cells with low number of gene expressions
-        if sp.issparse(adata.X):
-            adata.obs['n_count'] = adata.X.sum(axis=1).A1
-        else:
-            adata.obs['n_count'] = adata.X.sum(axis=1)
-        
-        valid_cells = adata.obs['n_count'] >= cell_ge_expr_threshold
-        adata = adata[valid_cells, :]
-        
-        # log1p conversion
-        if log1p:
-            sc.pp.log1p(adata)
+    # Apply log1p transformation if specified
+    if log1p:
+        sc.pp.log1p(adata)
+
+    # Perform normalization if specified
+    if normalization:
+        sc.pp.normalize_total(adata, target_sum=1)  
     
-        # normalization
-        if normalization:
-            sc.pp.normalize_total(adata, target_sum=1)  
-        
-        # Return the data
-        return adata
-    else:
-        return 'This is not an h5ad file'
+    # Find and update the ensemble_id column
+    for index in adata.var.columns:
+        if check_if_all_strings(adata.var[index]):
+            if adata.var[index].head(10).str.startswith('ENSG').all():
+                adata.var[index] = adata.var[index].apply(remove_version_number)
+                adata.var_names = adata.var[index]
+                break
+    
+    return adata
 
 def main():
-    parser = argparse.ArgumentParser(description='Preprocess h5ad files.')
-    parser.add_argument('--input', type=str, help='Path to the input .h5ad file.')
-    parser.add_argument('--output', type=str, default='preprocessed_data.h5ad', help='Output path for the preprocessed data.')
-    parser.add_argument('--cell-ge-expr-threshold', type=int, default=1000, help='Minimum total gene expression count for a cell.')
-    parser.add_argument('--gene-num-threshold', type=int, default=60, help='Minimum number of genes detected in a cell.')
-    parser.add_argument('--no-normalization', action='store_false', help='Do not perform total-count normalization.')
-    parser.add_argument('--no-log1p', action='store_false', help='Do not perform log1p transformation.')
+    """
+    Main function to parse command-line arguments and preprocess the data.
+    """
+    parser = argparse.ArgumentParser(description='Preprocess h5ad file.')
+    parser.add_argument('--file-input-path', type=str, required=True, help='Path to the input h5ad file.')
+    parser.add_argument('--cell-ge-expr-threshold', type=int, default=1000, help='Threshold for cell gene expression.')
+    parser.add_argument('--gene-num-threshold', type=int, default=60, help='Threshold for minimum number of genes per cell.')
+    parser.add_argument('--normalization', action='store_true', help='Perform normalization.')
+    parser.add_argument('--log1p', action='store_true', help='Apply log1p transformation.')
 
     args = parser.parse_args()
 
     # Preprocess the data
-    adata = h5ad_preprocessing(args.input,
-                               cell_ge_expr_threshold=args.cell_ge_expr_threshold,
-                               gene_num_threshold=args.gene_num_threshold,
-                               normalization=args.no_normalization,
-                               log1p=args.no_log1p)
-    
-    # Save the preprocessed data
-    if isinstance(adata, str):
-        print(adata)
-    else:
-        adata.write(args.output)
-        print(f'Preprocessed data saved to {args.output}')
+    adata = H5adPreprocessing(
+        file_input_path=args.file_input_path,
+        cell_ge_expr_threshold=args.cell_ge_expr_threshold,
+        gene_num_threshold=args.gene_num_threshold,
+        normalization=args.normalization,
+        log1p=args.log1p
+    )
+
+    # Optionally output the processed data
+    # adata.write('output.h5ad')  # Save the processed data
+    print(adata)
 
 if __name__ == '__main__':
     main()
-
 

@@ -2,7 +2,7 @@
 Geneformer tokenizer.
 **Input data:**
 | *Required format:* raw counts scRNAseq data without feature selection as .loom or anndata file.
-| *Required row (gene) attribute:* "ensembl_id"; Ensembl ID for each gene.
+| *Required row (gene) attribute:* "feature_id"; Ensembl ID for each gene.
 | *Required col (cell) attribute:* "n_counts"; total read counts in that cell.
 | *Optional col (cell) attribute:* "filter_pass"; binary indicator of whether cell should be tokenized based on user-defined filtering criteria.
 | *Optional col (cell) attributes:* any other cell metadata can be passed on to the tokenized dataset as a custom attribute dictionary as shown below.
@@ -14,7 +14,7 @@ Geneformer tokenizer.
 **Description:**
 | Input data is a directory with .loom or .h5ad files containing raw counts from single cell RNAseq data, including all genes detected in the transcriptome without feature selection. The input file type is specified by the argument file_format in the tokenize_data function.
 | The discussion below references the .loom file format, but the analagous labels are required for .h5ad files, just that they will be column instead of row attributes and vice versa due to the transposed format of the two file types.
-| Genes should be labeled with Ensembl IDs (loom row attribute "ensembl_id"), which provide a unique identifer for conversion to tokens. Other forms of gene annotations (e.g. gene names) can be converted to Ensembl IDs via Ensembl Biomart. Cells should be labeled with the total read count in the cell (loom column attribute "n_counts") to be used for normalization.
+| Genes should be labeled with Ensembl IDs (loom row attribute "feature_id"), which provide a unique identifer for conversion to tokens. Other forms of gene annotations (e.g. gene names) can be converted to Ensembl IDs via Ensembl Biomart. Cells should be labeled with the total read count in the cell (loom column attribute "n_counts") to be used for normalization.
 | No cell metadata is required, but custom cell attributes may be passed onto the tokenized dataset by providing a dictionary of custom attributes to be added, which is formatted as loom_col_attr_name : desired_dataset_col_attr_name. For example, if the original .loom dataset has column attributes "cell_type" and "organ_major" and one would like to retain these attributes as labels in the tokenized dataset with the new names "cell_type" and "organ", respectively, the following custom attribute dictionary should be provided: {"cell_type": "cell_type", "organ_major": "organ"}.
 | Additionally, if the original .loom file contains a cell column attribute called "filter_pass", this column will be used as a binary indicator of whether to include these cells in the tokenized data. All cells with "1" in this attribute will be tokenized, whereas the others will be excluded. One may use this column to indicate QC filtering or other criteria for selection for inclusion in the final tokenized dataset.
 | If one's data is in other formats besides .loom or .h5ad, one can use the relevant tools (such as Anndata tools) to convert the file to a .loom or .h5ad format prior to running the transcriptome tokenizer.
@@ -65,7 +65,7 @@ def tokenize_cell(gene_vector, gene_tokens):
     # rank by median-scaled gene values
     return rank_genes(gene_vector[nonzero_mask], gene_tokens[nonzero_mask])
 
-def sum_ensembl_ids(data_directory,
+def sum_feature_ids(data_directory,
                     collapse_gene_ids,
                     gene_mapping_dict,
                     gene_token_dict,
@@ -77,8 +77,8 @@ def sum_ensembl_ids(data_directory,
         Map Ensembl IDs from gene mapping dictionary. If duplicate Ensembl IDs are found, sum counts together.
         """
         with lp.connect(data_directory) as data:
-            assert "ensembl_id" in data.ra.keys(), "'ensembl_id' column missing from data.ra.keys()"
-            gene_ids_in_dict = [gene for gene in data.ra.ensembl_id if gene in gene_token_dict.keys()]
+            assert "feature_id" in data.ra.keys(), "'feature_id' column missing from data.ra.keys()"
+            gene_ids_in_dict = [gene for gene in data.ra.feature_id if gene in gene_token_dict.keys()]
             if len(gene_ids_in_dict) == len(set(gene_ids_in_dict)):
                 token_genes_unique = True
             else:
@@ -89,7 +89,7 @@ def sum_ensembl_ids(data_directory,
                 else:
                     raise ValueError("Error: data Ensembl IDs non-unique.")
 
-            gene_ids_collapsed = [gene_mapping_dict.get(gene_id.upper()) for gene_id in data.ra.ensembl_id]
+            gene_ids_collapsed = [gene_mapping_dict.get(gene_id.upper()) for gene_id in data.ra.feature_id]
             gene_ids_collapsed_in_dict = [gene for gene in gene_ids_collapsed if gene in gene_token_dict.keys()]
 
             if (len(set(gene_ids_collapsed_in_dict)) == len(set(gene_ids_in_dict))) and token_genes_unique:
@@ -117,7 +117,7 @@ def sum_ensembl_ids(data_directory,
                         return data_count_view
                     processed_chunk = process_chunk(view[:, :], dup_genes)
                     processed_array = processed_chunk.to_numpy()
-                    new_row_attrs = {"ensembl_id": processed_chunk.index.to_numpy()}
+                    new_row_attrs = {"feature_id": processed_chunk.index.to_numpy()}
 
                     if "n_counts" not in view.ca.keys():
                         total_count_view = np.sum(view[:,:], axis=0).astype(int)
@@ -138,13 +138,12 @@ def sum_ensembl_ids(data_directory,
         """
 
         data = sc.read_h5ad(str(data_directory))
-
+        data.obs['organism'] = 'Homo sapiens'
         if "n_counts" not in data.obs_names:
             total_count = np.sum(data.X, axis=1).astype(int)
             data.obs["n_counts"] = total_count
-
-        assert "ensembl_id" in data.var.columns, "'ensembl_id' column missing from data.var"
-        gene_ids_in_dict = [gene for gene in data.var.ensembl_id if gene in gene_token_dict.keys()]
+        assert "feature_id" in data.var.columns, "'feature_id' column missing from data.var"
+        gene_ids_in_dict = [gene for gene in data.var.feature_id if gene in gene_token_dict.keys()]
         if len(gene_ids_in_dict) == len(set(gene_ids_in_dict)):
             token_genes_unique = True
         else:
@@ -155,7 +154,7 @@ def sum_ensembl_ids(data_directory,
             else:
                 raise ValueError("Error: data Ensembl IDs non-unique.")
 
-        gene_ids_collapsed = [gene_mapping_dict.get(gene_id.upper()) for gene_id in data.var.ensembl_id]
+        gene_ids_collapsed = [gene_mapping_dict.get(gene_id.upper()) for gene_id in data.var.feature_id]
         gene_ids_collapsed_in_dict = [gene for gene in gene_ids_collapsed if gene in gene_token_dict.keys()]
         if (len(set(gene_ids_collapsed_in_dict)) == len(set(gene_ids_in_dict))) and token_genes_unique:
             return data
@@ -200,7 +199,7 @@ def sum_ensembl_ids(data_directory,
             data_dedup = data[:, ~data.var.index.isin(dup_genes)] # Deduplicated data
             data_dedup = sc.concat([data_dedup, processed_genes], axis = 1)
             data_dedup.obs = data.obs
-            data_dedup.var = data_dedup.var.rename(columns = {"gene_ids_collapsed" : "ensembl_id"})
+            data_dedup.var = data_dedup.var.rename(columns = {"gene_ids_collapsed" : "feature_id"})
             return data_dedup
 
 class TranscriptomeTokenizer:
@@ -361,7 +360,7 @@ class TranscriptomeTokenizer:
         return tokenized_cells, cell_metadata
 
     def tokenize_anndata(self, adata_file_path, target_sum=10_000):
-        adata = sum_ensembl_ids(adata_file_path, self.collapse_gene_ids, self.gene_mapping_dict, self.gene_token_dict, file_format = "h5ad", chunk_size = self.chunk_size)
+        adata = sum_feature_ids(adata_file_path, self.collapse_gene_ids, self.gene_mapping_dict, self.gene_token_dict, file_format = "h5ad", chunk_size = self.chunk_size)
 
         if self.custom_attr_name_dict is not None:
             file_cell_metadata = {
@@ -369,15 +368,15 @@ class TranscriptomeTokenizer:
             }
 
         coding_miRNA_loc = np.where(
-            [self.genelist_dict.get(i, False) for i in adata.var["ensembl_id"]]
+            [self.genelist_dict.get(i, False) for i in adata.var["feature_id"]]
         )[0]
         norm_factor_vector = np.array(
             [
                 self.gene_median_dict[i]
-                for i in adata.var["ensembl_id"][coding_miRNA_loc]
+                for i in adata.var["feature_id"][coding_miRNA_loc]
             ]
         )
-        coding_miRNA_ids = adata.var["ensembl_id"][coding_miRNA_loc]
+        coding_miRNA_ids = adata.var["feature_id"][coding_miRNA_loc]
         coding_miRNA_tokens = np.array(
             [self.gene_token_dict[i] for i in coding_miRNA_ids]
         )
@@ -429,20 +428,20 @@ class TranscriptomeTokenizer:
             }
 
         dedup_filename = loom_file_path.with_name(loom_file_path.stem + "__dedup.loom")
-        loom_file_path = sum_ensembl_ids(loom_file_path, self.collapse_gene_ids, self.gene_mapping_dict, self.gene_token_dict, file_format = "loom", chunk_size = self.chunk_size)
+        loom_file_path = sum_feature_ids(loom_file_path, self.collapse_gene_ids, self.gene_mapping_dict, self.gene_token_dict, file_format = "loom", chunk_size = self.chunk_size)
 
         with lp.connect(str(loom_file_path)) as data:
             # define coordinates of detected protein-coding or miRNA genes and vector of their normalization factors
             coding_miRNA_loc = np.where(
-                [self.genelist_dict.get(i, False) for i in data.ra["ensembl_id"]]
+                [self.genelist_dict.get(i, False) for i in data.ra["feature_id"]]
             )[0]
             norm_factor_vector = np.array(
                 [
                     self.gene_median_dict[i]
-                    for i in data.ra["ensembl_id"][coding_miRNA_loc]
+                    for i in data.ra["feature_id"][coding_miRNA_loc]
                 ]
             )
-            coding_miRNA_ids = data.ra["ensembl_id"][coding_miRNA_loc]
+            coding_miRNA_ids = data.ra["feature_id"][coding_miRNA_loc]
             coding_miRNA_tokens = np.array(
                 [self.gene_token_dict[i] for i in coding_miRNA_ids]
             )
