@@ -18,7 +18,7 @@ parser.add_argument('--mode', type=str, default='train',
                             help='train or continue model')
 parser.add_argument('--data_type',type=str,default='gene_embedding',
                             help='you can use gene embedding or gene counts to train topic model')
-parser.add_argument('--num_topics',type=int,default="200",
+parser.add_argument('--num_topics',type=int,default="20",
                             help='number of topics')
 parser.add_argument('--counts_path', type=Path, default='../data/PBMC.h5ad',
                         help='Path to directory containing  gene counts(.h5ad).')
