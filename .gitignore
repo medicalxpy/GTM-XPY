@@ -166,3 +166,5 @@ cython_debug/
 data/
 save_model/
 src/
+test.ipynb
+train.ipynb

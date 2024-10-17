@@ -1,4 +1,6 @@
 cd GTM-XPY/src_new
 python embedding_module.py --data_directory=/volume3/kxu/LLM/blood/
-python train_module.py --embedding_path=../data/embeddings/gene2vec.pkl --counts_path=/volume3/kxu/LLM/blood/partition_0.h5ad --model_name=ETM-G2V-blood_0
-python train_module.py --embedding_path=../data/embeddings/gene2vec.pkl --model_name=G2V_PBMC --num_epoch=1
+python train_module.py --embedding_path=../data/embeddings/gene2vec.pkl --counts_path=/volume3/kxu/LLM/blood/partition_0.h5ad --model_name=G2V-blood_0
+python train_module.py --embedding_path=../data/embeddings/gene2vec.pkl --model_name=G2V_PBMC --num_epoch=2
+python train_module.py --counts_path=/volume3/kxu/LLM/blood/partition_0.h5ad --model_name=Geneformer-blood_0 --num_epoch=4
+python train_module.py --mode=continue --counts_path=/volume3/kxu/LLM/blood/partition_1.h5ad --model_name=Geneformer-blood_1 --num_epoch=1
