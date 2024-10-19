@@ -15,7 +15,7 @@ class TopicConfigs:
         self.gene_size = 1000
         self.act = 'relu'
         self.enc_drop = 0.5
-        self.device = 'cuda'
+        self.device = 'cuda:1'
         self.batch_size = 32
         self.learning_rate = 1e-3
         self.weight_decay = 1e-6
@@ -28,6 +28,6 @@ class LDAconfigs:
         self.alpha = 0.1
         self.beta = 0.1
         self.iterations= 20
-        self.device = 'cuda'
+        self.device = 'cuda:1'
         self.verbose = 1
         self.batch_size = 32

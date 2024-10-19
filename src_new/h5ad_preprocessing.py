@@ -85,6 +85,4 @@ def main():
     # adata.write('output.h5ad')  # Save the processed data
     print(adata)
 
-if __name__ == '__main__':
-    main()
 
